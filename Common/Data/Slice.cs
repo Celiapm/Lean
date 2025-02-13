@@ -19,7 +19,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using QuantConnect.Data.Custom.IconicTypes;
+using QuantConnect.Data.Fundamental;
 using QuantConnect.Data.Market;
+using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Python;
 
 namespace QuantConnect.Data
@@ -236,7 +238,7 @@ namespace QuantConnect.Data
                 CreateCollection<Dividends, Dividend>(time, data),
                 CreateCollection<Delistings, Delisting>(time, data),
                 CreateCollection<SymbolChangedEvents, SymbolChangedEvent>(time, data),
-                CreateCollection<MarginInterestRates, MarginInterestRate> (time, data),
+                CreateCollection<MarginInterestRates, MarginInterestRate>(time, data),
                 utcTime: utcTime)
         {
         }
@@ -360,6 +362,17 @@ namespace QuantConnect.Data
         /// <remarks>Supports both C# and Python use cases</remarks>
         protected dynamic GetImpl(Type type, Slice instance)
         {
+            if (type == typeof(Fundamentals))
+            {
+                // backwards compatibility for users doing a get of Fundamentals type
+                type = typeof(FundamentalUniverse);
+            }
+            else if (type == typeof(ETFConstituentData))
+            {
+                // backwards compatibility for users doing a get of ETFConstituentData type
+                type = typeof(ETFConstituentUniverse);
+            }
+
             if (instance._dataByType == null)
             {
                 // for performance we only really create this collection if someone used it
@@ -759,7 +772,7 @@ namespace QuantConnect.Data
         /// of the generic types instances and there add methods.</remarks>
         private class GenericDataDictionary
         {
-            private static readonly Dictionary<Type, GenericDataDictionary> _genericCache = new Dictionary<Type, GenericDataDictionary>();
+            private static Dictionary<Type, GenericDataDictionary> _genericCache = new Dictionary<Type, GenericDataDictionary>();
 
             /// <summary>
             /// The <see cref="DataDictionary{T}.Add(KeyValuePair{QuantConnect.Symbol,T})"/> method
@@ -785,8 +798,7 @@ namespace QuantConnect.Data
             /// <returns>A new instance or retrieved from the cache</returns>
             public static GenericDataDictionary Get(Type type, bool isPythonData)
             {
-                GenericDataDictionary dataDictionaryCache;
-                if (!_genericCache.TryGetValue(type, out dataDictionaryCache))
+                if (!_genericCache.TryGetValue(type, out var dataDictionaryCache))
                 {
                     var dictionaryType = type;
                     if (isPythonData)
@@ -796,7 +808,11 @@ namespace QuantConnect.Data
                     }
                     var generic = typeof(DataDictionary<>).MakeGenericType(dictionaryType);
                     var method = generic.GetMethod("Add", new[] { typeof(Symbol), dictionaryType });
-                    _genericCache[type] = dataDictionaryCache = new GenericDataDictionary(generic, method);
+
+                    // Replace the cache instance with a new one instead of locking in order to avoid the overhead
+                    var temp = new Dictionary<Type, GenericDataDictionary>(_genericCache);
+                    temp[type] = dataDictionaryCache = new GenericDataDictionary(generic, method);
+                    _genericCache = temp;
                 }
 
                 return dataDictionaryCache;

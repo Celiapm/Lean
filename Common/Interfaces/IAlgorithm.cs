@@ -22,6 +22,8 @@ using QuantConnect.Benchmarks;
 using QuantConnect.Brokerages;
 using QuantConnect.Scheduling;
 using QuantConnect.Securities;
+using QuantConnect.Statistics;
+using QuantConnect.Data.Market;
 using QuantConnect.Notifications;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -30,7 +32,7 @@ using QuantConnect.Securities.Option;
 using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Algorithm.Framework.Alphas;
 using QuantConnect.Algorithm.Framework.Alphas.Analysis;
-using QuantConnect.Statistics;
+using QuantConnect.Commands;
 
 namespace QuantConnect.Interfaces
 {
@@ -195,12 +197,30 @@ namespace QuantConnect.Interfaces
         /// <summary>
         /// Public name for the algorithm.
         /// </summary>
-        /// <remarks>Not currently used but preserved for API integrity</remarks>
         string Name
         {
             get;
             set;
         }
+
+        /// <summary>
+        /// A list of tags associated with the algorithm or the backtest, useful for categorization
+        /// </summary>
+        HashSet<string> Tags
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Event fired algorithm's name is changed
+        /// </summary>
+        event AlgorithmEvent<string> NameUpdated;
+
+        /// <summary>
+        /// Event fired when the tag collection is updated
+        /// </summary>
+        event AlgorithmEvent<HashSet<string>> TagsUpdated;
 
         /// <summary>
         /// Current date/time in the algorithm's local time zone
@@ -494,6 +514,30 @@ namespace QuantConnect.Interfaces
         void OnFrameworkData(Slice slice);
 
         /// <summary>
+        /// Event handler to be called when there's been a split event
+        /// </summary>
+        /// <param name="splits">The current time slice splits</param>
+        void OnSplits(Splits splits);
+
+        /// <summary>
+        /// Event handler to be called when there's been a dividend event
+        /// </summary>
+        /// <param name="dividends">The current time slice dividends</param>
+        void OnDividends(Dividends dividends);
+
+        /// <summary>
+        /// Event handler to be called when there's been a delistings event
+        /// </summary>
+        /// <param name="delistings">The current time slice delistings</param>
+        void OnDelistings(Delistings delistings);
+
+        /// <summary>
+        /// Event handler to be called when there's been a symbol changed event
+        /// </summary>
+        /// <param name="symbolsChanged">The current time slice symbol changed events</param>
+        void OnSymbolChangedEvents(SymbolChangedEvents symbolsChanged);
+
+        /// <summary>
         /// Event fired each time that we add/remove securities from the data feed
         /// </summary>
         /// <param name="changes">Security additions/removals for this time step</param>
@@ -564,6 +608,13 @@ namespace QuantConnect.Interfaces
         /// </summary>
         /// <param name="newEvent">Event information</param>
         void OnOrderEvent(OrderEvent newEvent);
+
+        /// <summary>
+        /// Generic untyped command call handler
+        /// </summary>
+        /// <param name="data">The associated data</param>
+        /// <returns>True if success, false otherwise. Returning null will disable command feedback</returns>
+        bool? OnCommand(dynamic data);
 
         /// <summary>
         /// Will submit an order request to the algorithm
@@ -642,7 +693,7 @@ namespace QuantConnect.Interfaces
         /// </summary>
         /// <param name="clearChartData"></param>
         /// <returns>List of Chart Updates</returns>
-        List<Chart> GetChartUpdates(bool clearChartData = false);
+        IEnumerable<Chart> GetChartUpdates(bool clearChartData = false);
 
         /// <summary>
         /// Set a required SecurityType-symbol and resolution for algorithm
@@ -729,12 +780,13 @@ namespace QuantConnect.Interfaces
         void SetCash(string symbol, decimal startingCash, decimal conversionRate = 0);
 
         /// <summary>
-        /// Liquidate your portfolio holdings:
+        /// Liquidate your portfolio holdings
         /// </summary>
-        /// <param name="symbolToLiquidate">Specific asset to liquidate, defaults to all.</param>
-        /// <param name="tag">Custom tag to know who is calling this.</param>
-        /// <returns>list of order ids</returns>
-        List<int> Liquidate(Symbol symbolToLiquidate = null, string tag = "Liquidated");
+        /// <param name="symbol">Specific asset to liquidate, defaults to all.</param>
+        /// <param name="asynchronous">Flag to indicate if the symbols should be liquidated asynchronously</param>
+        /// <param name="tag">Custom tag to know who is calling this</param>
+        /// <param name="orderProperties">Order properties to use</param>
+        List<OrderTicket> Liquidate(Symbol symbol = null, bool asynchronous = false, string tag = "Liquidated", IOrderProperties orderProperties = null);
 
         /// <summary>
         /// Set live mode state of the algorithm run: Public setter for the algorithm property LiveMode.
@@ -857,5 +909,30 @@ namespace QuantConnect.Interfaces
         /// </summary>
         /// <param name="statisticsService">The statistics service instance</param>
         void SetStatisticsService(IStatisticsService statisticsService);
+
+        /// <summary>
+        /// Sets name to the currently running backtest
+        /// </summary>
+        /// <param name="name">The name for the backtest</param>
+        void SetName(string name);
+
+        /// <summary>
+        /// Adds a tag to the algorithm
+        /// </summary>
+        /// <param name="tag">The tag to add</param>
+        void AddTag(string tag);
+
+        /// <summary>
+        /// Sets the tags for the algorithm
+        /// </summary>
+        /// <param name="tags">The tags</param>
+        void SetTags(HashSet<string> tags);
+
+        /// <summary>
+        /// Run a callback command instance
+        /// </summary>
+        /// <param name="command">The callback command instance</param>
+        /// <returns>The command result</returns>
+        CommandResultPacket RunCommand(CallbackCommand command);
     }
 }

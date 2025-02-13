@@ -19,13 +19,13 @@ using System.Linq;
 using System.Numerics;
 using Newtonsoft.Json;
 using ProtoBuf;
-using QuantConnect.Configuration;
 using QuantConnect.Data.Auxiliary;
 using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Interfaces;
 using QuantConnect.Logging;
 using QuantConnect.Securities.Future;
 using QuantConnect.Util;
+using static QuantConnect.Messages;
 
 namespace QuantConnect
 {
@@ -45,11 +45,8 @@ namespace QuantConnect
 
         private static readonly Dictionary<string, Type> TypeMapping = new();
         private static readonly Dictionary<string, SecurityIdentifier> SecurityIdentifierCache = new();
-        private static readonly string MapFileProviderTypeName = Config.Get("map-file-provider", "LocalDiskMapFileProvider");
         private static readonly char[] InvalidCharacters = {'|', ' '};
-        private static readonly Lazy<IMapFileProvider> MapFileProvider = new Lazy<IMapFileProvider>(
-            () => Composer.Instance.GetExportedValueByTypeName<IMapFileProvider>(MapFileProviderTypeName, forceTypeNameOnExisting: false)
-        );
+        private static readonly Lazy<IMapFileProvider> MapFileProvider = new(Composer.Instance.GetPart<IMapFileProvider>());
 
         /// <summary>
         /// Gets an instance of <see cref="SecurityIdentifier"/> that is empty, that is, one with no symbol specified
@@ -224,8 +221,8 @@ namespace QuantConnect
         public SecurityType SecurityType { get; }
 
         /// <summary>
-        /// Gets the option strike price. This only applies to SecurityType.Option
-        /// and will thrown anexception if accessed otherwse.
+        /// Gets the option strike price. This only applies if SecurityType is Option, 
+        /// IndexOption or FutureOption and will thrown anexception if accessed otherwise.
         /// </summary>
         public decimal StrikePrice
         {
@@ -262,8 +259,8 @@ namespace QuantConnect
 
         /// <summary>
         /// Gets the option type component of this security identifier. This
-        /// only applies to SecurityType.Open and will throw an exception if
-        /// accessed otherwise.
+        /// only applies if SecurityType is Option, IndexOption or FutureOption
+        /// and will throw an exception if accessed otherwise.
         /// </summary>
         public OptionRight OptionRight
         {
@@ -285,8 +282,8 @@ namespace QuantConnect
 
         /// <summary>
         /// Gets the option style component of this security identifier. This
-        /// only applies to SecurityType.Open and will throw an exception if
-        /// accessed otherwise.
+        /// only applies if SecurityType is Option, IndexOption or FutureOption
+        /// and will throw an exception if accessed otherwise.
         /// </summary>
         public OptionStyle OptionStyle
         {
@@ -847,6 +844,20 @@ namespace QuantConnect
 
         private static readonly char[] SplitSpace = {' '};
 
+        private static void CacheSid(string key, SecurityIdentifier identifier)
+        {
+            lock (SecurityIdentifierCache)
+            {
+                // limit the cache size to help with memory usage
+                if (SecurityIdentifierCache.Count >= 600000)
+                {
+                    SecurityIdentifierCache.Clear();
+                }
+
+                SecurityIdentifierCache[key] = identifier;
+            }
+        }
+
         /// <summary>
         /// Parses the string into its component ulong pieces
         /// </summary>
@@ -871,7 +882,8 @@ namespace QuantConnect
                 if (string.IsNullOrWhiteSpace(value) || value == " 0")
                 {
                     // we know it's not null already let's cache it
-                    SecurityIdentifierCache[value] = identifier = Empty;
+                    identifier = Empty;
+                    CacheSid(value, identifier);
                     return true;
                 }
 
@@ -895,11 +907,22 @@ namespace QuantConnect
                         var otherData = parts[1];
                         var props = otherData.DecodeBase36();
 
-                        // toss the previous in as the underlying, if Empty, ignored by ctor
-                        identifier = new SecurityIdentifier(symbol, props, identifier);
+                        if (!identifier.Equals(Empty) || !SecurityIdentifierCache.TryGetValue(current, out var cachedIdentifier))
+                        {
+                            // toss the previous in as the underlying, if Empty, ignored by ctor
+                            identifier = new SecurityIdentifier(symbol, props, identifier);
 
-                        // the following method will test if the market is supported/valid
-                        GetMarketIdentifier(identifier.Market);
+                            // the following method will test if the market is supported/valid
+                            GetMarketIdentifier(identifier.Market);
+
+                            var key = i < sids.Length - 1 ? $"{current}|{sids[i + 1]}" : current;
+                            CacheSid(key, identifier);
+                        }
+                        else
+                        {
+                            // we already have this value in the cache, just return it
+                            identifier = cachedIdentifier;
+                        }
                     }
                 }
                 catch (Exception error)
@@ -907,11 +930,10 @@ namespace QuantConnect
                     exception = error;
                     Log.Error($@"SecurityIdentifier.TryParseProperties(): {
                         Messages.SecurityIdentifier.ErrorParsingSecurityIdentifier(value, exception)}");
-                    SecurityIdentifierCache[value] = null;
+                    CacheSid(value, null);
                     return false;
                 }
 
-                SecurityIdentifierCache[value] = identifier;
                 return true;
             }
         }

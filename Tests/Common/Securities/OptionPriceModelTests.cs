@@ -208,10 +208,11 @@ namespace QuantConnect.Tests.Common
             var spy = Symbols.SPY;
             var evaluationDate = new DateTime(2015, 2, 19);
             var SPY_C_192_Feb19_2016E = GetOptionSymbol(spy, OptionStyle.American, OptionRight.Call);
+            var option = CreateOption(SPY_C_192_Feb19_2016E);
 
             var equity = GetEquity(spy, underlyingPrice, underlyingVol, tz);
 
-            var contract = new OptionContract(Symbols.SPY_C_192_Feb19_2016, Symbols.SPY) { Time = evaluationDate };
+            var contract = new OptionContract(option) { Time = evaluationDate };
             var optionCall = GetOption(SPY_C_192_Feb19_2016E, equity, tz);
             optionCall.SetMarketPrice(new Tick { Value = price });
 
@@ -514,7 +515,7 @@ namespace QuantConnect.Tests.Common
         [TestCase(OptionStyle.European, "CrankNicolsonFD", 0.01d, 0.01d, 0.01d, 0.33d, 642d)]
         [TestCase(OptionStyle.European, "Integral", 0.01d, 0.12d, 0.01d, 0.33d, 4622d)]
         public void MatchesIBGreeksNearATMPut(OptionStyle style, string qlModelName, double errorIV, double errorDelta, double errorGamma, double errorVega, double errorTheta)
-        { 
+        {
             var filename = style == OptionStyle.American ? "SPY230811P00450000" : "SPX230811P04500000";
             var symbol = Symbols.SPY;       // dummy
             var strike = Parse.Decimal(filename[10..]) / 1000m;
@@ -811,7 +812,7 @@ namespace QuantConnect.Tests.Common
             MatchesIBGreeksTest(symbol, optionSymbol, filename, qlModelName, errorIV, errorDelta, errorGamma, errorVega, errorTheta);
         }
 
-        private void MatchesIBGreeksTest(Symbol symbol, Symbol optionSymbol, string filename, string qlModelName, 
+        private void MatchesIBGreeksTest(Symbol symbol, Symbol optionSymbol, string filename, string qlModelName,
                                          double errorIV, double errorDelta, double errorGamma, double errorVega, double errorTheta)
         {
             var tz = TimeZones.NewYork;
@@ -878,7 +879,7 @@ namespace QuantConnect.Tests.Common
             // Expect minor error due to interest rate and dividend yield used in IB
             Assert.AreEqual(impliedVolEstimate, ibImpliedVol, 0.001);
         }
-        
+
         [Test]
         public void PriceModelEvaluateSpeedTest()
         {
@@ -938,6 +939,19 @@ namespace QuantConnect.Tests.Common
             return Symbol.CreateOption(underlying.Value, Market.USA, optionStyle, optionRight, strike, (DateTime)expiry);
         }
 
+        private static Option CreateOption(Symbol symbol)
+        {
+            return new Option(
+                        SecurityExchangeHours.AlwaysOpen(TimeZones.NewYork),
+                        new SubscriptionDataConfig(typeof(TradeBar), symbol, Resolution.Minute, TimeZones.NewYork, TimeZones.NewYork, true, true, true),
+                        new Cash(Currencies.USD, 0, 1m),
+                        new OptionSymbolProperties(SymbolProperties.GetDefault(Currencies.USD)),
+                        ErrorCurrencyConverter.Instance,
+                        RegisteredSecurityDataTypesProvider.Null
+                    )
+            { ExerciseSettlement = SettlementType.Cash };
+        }
+
         public static Equity GetEquity(Symbol symbol, decimal underlyingPrice, decimal underlyingVol, NodaTime.DateTimeZone tz)
         {
             var equity = new Equity(
@@ -956,7 +970,8 @@ namespace QuantConnect.Tests.Common
 
         public OptionContract GetOptionContract(Symbol symbol, Symbol underlying, DateTime evaluationDate)
         {
-            return new OptionContract(symbol, underlying) { Time = evaluationDate };
+            var option = CreateOption(symbol);
+            return new OptionContract(option) { Time = evaluationDate };
         }
 
         public static Option GetOption(Symbol symbol, Equity underlying, NodaTime.DateTimeZone tz)

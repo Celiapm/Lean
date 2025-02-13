@@ -66,11 +66,12 @@ namespace QuantConnect.Securities
         /// </summary>
         /// <remarks>Following the obsoletion of Security.Subscriptions,
         /// both overloads will be merged removing <see cref="SubscriptionDataConfig"/> arguments</remarks>
-        public Security CreateSecurity(Symbol symbol,
+        private Security CreateSecurity(Symbol symbol,
             List<SubscriptionDataConfig> subscriptionDataConfigList,
-            decimal leverage = 0,
-            bool addToSymbolCache = true,
-            Security underlying = null)
+            decimal leverage,
+            bool addToSymbolCache,
+            Security underlying,
+            bool initializeSecurity)
         {
             var configList = new SubscriptionDataConfigList(symbol);
             configList.AddRange(subscriptionDataConfigList);
@@ -116,12 +117,19 @@ namespace QuantConnect.Securities
 
             Cash baseCash = null;
             // we skip cfd because we don't need to add the base cash
-            if (symbol.SecurityType != SecurityType.Cfd && CurrencyPairUtil.TryDecomposeCurrencyPair(symbol, out var baseCurrencySymbol, out _))
+            if (symbol.SecurityType != SecurityType.Cfd)
             {
-                if (!_cashBook.TryGetValue(baseCurrencySymbol, out baseCash))
+                if (CurrencyPairUtil.TryDecomposeCurrencyPair(symbol, out var baseCurrencySymbol, out _))
                 {
-                    // since we have none it's safe to say the conversion is zero
-                    baseCash = _cashBook.Add(baseCurrencySymbol, 0, 0);
+                    if (!_cashBook.TryGetValue(baseCurrencySymbol, out baseCash))
+                    {
+                        // since we have none it's safe to say the conversion is zero
+                        baseCash = _cashBook.Add(baseCurrencySymbol, 0, 0);
+                    }
+                }
+                else if (CurrencyPairUtil.IsValidSecurityType(symbol.SecurityType, false))
+                {
+                    throw new ArgumentException($"Failed to resolve base currency for '{symbol.ID.Symbol}', it might be missing from the Symbol database or market '{symbol.ID.Market}' could be wrong");
                 }
             }
 
@@ -190,15 +198,18 @@ namespace QuantConnect.Securities
 
             // if we're just creating this security and it only has an internal
             // feed, mark it as non-tradable since the user didn't request this data
-            if (!configList.IsInternalFeed)
+            if (security.IsTradable)
             {
-                security.IsTradable = true;
+                security.IsTradable = !configList.IsInternalFeed;
             }
 
             security.AddData(configList);
 
             // invoke the security initializer
-            _securityInitializerProvider.SecurityInitializer.Initialize(security);
+            if (initializeSecurity)
+            {
+                _securityInitializerProvider.SecurityInitializer.Initialize(security);
+            }
 
             CheckCanonicalSecurityModels(security);
 
@@ -225,9 +236,38 @@ namespace QuantConnect.Securities
         /// </summary>
         /// <remarks>Following the obsoletion of Security.Subscriptions,
         /// both overloads will be merged removing <see cref="SubscriptionDataConfig"/> arguments</remarks>
+        public Security CreateSecurity(Symbol symbol,
+            List<SubscriptionDataConfig> subscriptionDataConfigList,
+            decimal leverage = 0,
+            bool addToSymbolCache = true,
+            Security underlying = null)
+        {
+            return CreateSecurity(symbol, subscriptionDataConfigList, leverage, addToSymbolCache, underlying, initializeSecurity: true);
+        }
+
+        /// <summary>
+        /// Creates a new security
+        /// </summary>
+        /// <remarks>Following the obsoletion of Security.Subscriptions,
+        /// both overloads will be merged removing <see cref="SubscriptionDataConfig"/> arguments</remarks>
         public Security CreateSecurity(Symbol symbol, SubscriptionDataConfig subscriptionDataConfig, decimal leverage = 0, bool addToSymbolCache = true, Security underlying = null)
         {
             return CreateSecurity(symbol, new List<SubscriptionDataConfig> { subscriptionDataConfig }, leverage, addToSymbolCache, underlying);
+        }
+
+        /// <summary>
+        /// Creates a new security
+        /// </summary>
+        /// <remarks>Following the obsoletion of Security.Subscriptions,
+        /// both overloads will be merged removing <see cref="SubscriptionDataConfig"/> arguments</remarks>
+        public Security CreateBenchmarkSecurity(Symbol symbol)
+        {
+            return CreateSecurity(symbol,
+                new List<SubscriptionDataConfig>(),
+                leverage: 1,
+                addToSymbolCache: false,
+                underlying: null,
+                initializeSecurity: false);
         }
 
         /// <summary>

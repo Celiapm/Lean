@@ -40,13 +40,13 @@ namespace QuantConnect.Data.Market
         /// Type of the Tick: Trade or Quote.
         /// </summary>
         [ProtoMember(10)]
-        public TickType TickType = TickType.Trade;
+        public TickType TickType { get; set; } = TickType.Trade;
 
         /// <summary>
         /// Quantity exchanged in a trade.
         /// </summary>
         [ProtoMember(11)]
-        public decimal Quantity = 0;
+        public decimal Quantity { get; set; }
 
         /// <summary>
         /// Exchange code this tick came from <see cref="Exchanges"/>
@@ -94,7 +94,7 @@ namespace QuantConnect.Data.Market
         /// <summary>
         /// Sale condition for the tick.
         /// </summary>
-        public string SaleCondition = "";
+        public string SaleCondition { get; set; } = string.Empty;
 
         /// <summary>
         /// For performance parsed sale condition for the tick.
@@ -104,6 +104,11 @@ namespace QuantConnect.Data.Market
         {
             get
             {
+                if (string.IsNullOrEmpty(SaleCondition))
+                {
+                    return 0;
+                }
+
                 if (!_parsedSaleCondition.HasValue)
                 {
                     _parsedSaleCondition = uint.Parse(SaleCondition, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
@@ -120,19 +125,19 @@ namespace QuantConnect.Data.Market
         /// Bool whether this is a suspicious tick
         /// </summary>
         [ProtoMember(14)]
-        public bool Suspicious = false;
+        public bool Suspicious { get; set; }
 
         /// <summary>
         /// Bid Price for Tick
         /// </summary>
         [ProtoMember(15)]
-        public decimal BidPrice = 0;
+        public decimal BidPrice { get; set; }
 
         /// <summary>
         /// Asking price for the Tick quote.
         /// </summary>
         [ProtoMember(16)]
-        public decimal AskPrice = 0;
+        public decimal AskPrice { get; set; }
 
         /// <summary>
         /// Alias for "Value" - the last sale for this asset.
@@ -149,13 +154,13 @@ namespace QuantConnect.Data.Market
         /// Size of bid quote.
         /// </summary>
         [ProtoMember(17)]
-        public decimal BidSize = 0;
+        public decimal BidSize { get; set; }
 
         /// <summary>
         /// Size of ask quote.
         /// </summary>
         [ProtoMember(18)]
-        public decimal AskSize = 0;
+        public decimal AskSize { get; set; }
 
         //In Base Class: Alias of Closing:
         //public decimal Price;
@@ -224,6 +229,21 @@ namespace QuantConnect.Data.Market
             TickType = TickType.Quote;
             BidPrice = bid;
             AskPrice = ask;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Tick"/> class to <see cref="TickType.OpenInterest"/>.
+        /// </summary>
+        /// <param name="time">The time at which the open interest tick occurred.</param>
+        /// <param name="symbol">The symbol associated with the open interest tick.</param>
+        /// <param name="openInterest">The value of the open interest for the specified symbol.</param>
+        public Tick(DateTime time, Symbol symbol, decimal openInterest)
+        {
+            Time = time;
+            Symbol = symbol;
+            Value = openInterest;
+            DataType = MarketDataType.Tick;
+            TickType = TickType.OpenInterest;
         }
 
         /// <summary>
@@ -682,11 +702,11 @@ namespace QuantConnect.Data.Market
         /// Tick implementation of reader method: read a line of data from the source and convert it to a tick object.
         /// </summary>
         /// <param name="config">Subscription configuration object for algorithm</param>
-        /// <param name="reader">The source stream reader</param>
+        /// <param name="stream">The source stream reader</param>
         /// <param name="date">Date of this reader request</param>
         /// <param name="isLiveMode">true if we're in live mode, false for backtesting mode</param>
         /// <returns>New Initialized tick</returns>
-        public override BaseData Reader(SubscriptionDataConfig config, StreamReader reader, DateTime date, bool isLiveMode)
+        public override BaseData Reader(SubscriptionDataConfig config, StreamReader stream, DateTime date, bool isLiveMode)
         {
             if (isLiveMode)
             {
@@ -694,7 +714,7 @@ namespace QuantConnect.Data.Market
                 return new Tick();
             }
 
-            return new Tick(config, reader, date);
+            return new Tick(config, stream, date);
         }
 
 

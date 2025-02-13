@@ -43,14 +43,12 @@ namespace QuantConnect.Algorithm.CSharp
             SetEndDate(2021, 1, 10);
             SetCash(1000000);
 
-            var spx = AddIndex("SPX").Symbol;
-
             // regular option SPX contracts
-            var spxOptions = AddIndexOption(spx);
+            var spxOptions = AddIndexOption("SPX");
             spxOptions.SetFilter(u => u.Strikes(0, 1).Expiration(0, 30));
 
             // weekly option SPX contracts
-            var spxw = AddIndexOption(spx, "SPXW");
+            var spxw = AddIndexOption("SPX", "SPXW");
             spxw.SetFilter(u => u.Strikes(0, 1)
                  // single week ahead since there are many SPXW contracts and we want to preserve performance
                  .Expiration(0, 7)
@@ -100,12 +98,12 @@ namespace QuantConnect.Algorithm.CSharp
         /// <summary>
         /// This is used by the regression test system to indicate which languages this algorithm is written in.
         /// </summary>
-        public virtual Language[] Languages { get; } = { Language.CSharp, Language.Python };
+        public virtual List<Language> Languages { get; } = new() { Language.CSharp, Language.Python };
 
         /// <summary>
         /// Data Points count of all timeslices of algorithm
         /// </summary>
-        public virtual long DataPoints => 65536;
+        public virtual long DataPoints => 21467;
 
         /// <summary>
         /// Data Points count of the algorithm history
@@ -113,34 +111,42 @@ namespace QuantConnect.Algorithm.CSharp
         public virtual int AlgorithmHistoryDataPoints => 0;
 
         /// <summary>
+        /// Final status of the algorithm
+        /// </summary>
+        public AlgorithmStatus AlgorithmStatus => AlgorithmStatus.Completed;
+
+        /// <summary>
         /// This is used by the regression test system to indicate what the expected statistics are from running the algorithm
         /// </summary>
         public virtual Dictionary<string, string> ExpectedStatistics => new Dictionary<string, string>
         {
-            {"Total Trades", "5"},
+            {"Total Orders", "5"},
             {"Average Win", "0%"},
             {"Average Loss", "-0.69%"},
-            {"Compounding Annual Return", "58.005%"},
+            {"Compounding Annual Return", "55.039%"},
             {"Drawdown", "0.400%"},
             {"Expectancy", "-0.5"},
-            {"Net Profit", "0.588%"},
-            {"Sharpe Ratio", "0.836"},
-            {"Probabilistic Sharpe Ratio", "51.980%"},
+            {"Start Equity", "1000000"},
+            {"End Equity", "1006025"},
+            {"Net Profit", "0.602%"},
+            {"Sharpe Ratio", "3.01"},
+            {"Sortino Ratio", "0"},
+            {"Probabilistic Sharpe Ratio", "62.865%"},
             {"Loss Rate", "50%"},
             {"Win Rate", "50%"},
             {"Profit-Loss Ratio", "0"},
-            {"Alpha", "0.286"},
-            {"Beta", "-0.04"},
+            {"Alpha", "0.249"},
+            {"Beta", "-0.033"},
             {"Annual Standard Deviation", "0.004"},
             {"Annual Variance", "0"},
-            {"Information Ratio", "-98.963"},
+            {"Information Ratio", "-99.414"},
             {"Tracking Error", "0.072"},
-            {"Treynor Ratio", "-0.086"},
+            {"Treynor Ratio", "-0.382"},
             {"Total Fees", "$0.00"},
             {"Estimated Strategy Capacity", "$580000.00"},
             {"Lowest Capacity Asset", "SPXW 31K54PVWHUJHQ|SPX 31"},
             {"Portfolio Turnover", "0.48%"},
-            {"OrderListHash", "07469a94a93198bbccadc8bc9cdfe87a"}
+            {"OrderListHash", "07a085baedb37bb7c8d460558ea77e88"}
         };
     }
 }

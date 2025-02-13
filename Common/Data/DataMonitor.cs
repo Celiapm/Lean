@@ -58,7 +58,7 @@ namespace QuantConnect.Data
         /// </summary>
         public DataMonitor()
         {
-            _resultsDestinationFolder = Config.Get("results-destination-folder", Directory.GetCurrentDirectory());
+            _resultsDestinationFolder = Globals.ResultsDestinationFolder;
             _succeededDataRequestsFileName = GetFilePath("succeeded-data-requests.txt");
             _failedDataRequestsFileName = GetFilePath("failed-data-requests.txt");
         }
@@ -85,7 +85,7 @@ namespace QuantConnect.Data
             var isUniverseData = path.Contains("coarse", StringComparison.OrdinalIgnoreCase) ||
                 path.Contains("universe", StringComparison.OrdinalIgnoreCase);
 
-            if (e.Succeded)
+            if (e.Succeeded)
             {
                 WriteLineToFile(_succeededDataRequestsWriter, path, _succeededDataRequestsFileName);
                 Interlocked.Increment(ref _succeededDataRequestsCount);
@@ -105,7 +105,7 @@ namespace QuantConnect.Data
 
                 if (Logging.Log.DebuggingEnabled)
                 {
-                    Logging.Log.Debug($"DataMonitor.OnNewDataRequest(): Data from {path} could not be fetched");
+                    Logging.Log.Debug($"DataMonitor.OnNewDataRequest(): Data from {path} could not be fetched, error: {e.ErrorMessage}");
                 }
             }
         }
@@ -132,11 +132,17 @@ namespace QuantConnect.Data
             _cancellationTokenSource.DisposeSafely();
         }
 
+        /// <summary>
+        /// Disposes this object
+        /// </summary>
         public void Dispose()
         {
             Exit();
         }
 
+        /// <summary>
+        /// Strips the given data folder path
+        /// </summary>
         protected virtual string StripDataFolder(string path)
         {
             if (path.StartsWith(Globals.DataFolder, StringComparison.OrdinalIgnoreCase))
@@ -226,7 +232,7 @@ namespace QuantConnect.Data
         /// <summary>
         /// Stores the data monitor report
         /// </summary>
-        /// <param name="report">The data monitor report to be stored<param>
+        /// <param name="report">The data monitor report to be stored</param>
         private void StoreDataMonitorReport(DataMonitorReport report)
         {
             if (report == null)
